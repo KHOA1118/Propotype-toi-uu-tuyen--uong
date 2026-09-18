@@ -1,0 +1,13 @@
+__pycache__/
+.venv/
+*.pyc
+/data/raw/*.osm
+/data/processed/
+
+# Public OSM source required by the fixed demo (unchanged).
+!/data/raw/hcm_map4.osm
+.env
+.env.*
+!.env.example
+dist/
+*.log

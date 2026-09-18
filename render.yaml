@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: lns-logistics-demo
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt && python tools/build.py
+    startCommand: python server.py
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: HOST
+        value: 0.0.0.0
+      - key: PYTHONUNBUFFERED
+        value: '1'
+      - key: OPENBLAS_NUM_THREADS
+        value: '1'
+      - key: API_BASE_URL
+        value: ''
+      - key: ALLOWED_ORIGINS
+        value: ''
