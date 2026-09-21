@@ -1,4 +1,3 @@
-"""API-independent conversion between JSON instances and the original LNS engine."""
 import contextlib
 import io
 import json
@@ -13,13 +12,9 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 SOLVE_LOCK = threading.Lock()  # notebook stdout redirection is process-global
 
-
 class InputError(ValueError):
-    """Invalid caller input (HTTP 400)."""
-
 
 class ConstructionError(ValueError):
-    """Original heuristic could not construct/accept a starting solution (422)."""
 
 
 def _number(value, label, minimum=None):
