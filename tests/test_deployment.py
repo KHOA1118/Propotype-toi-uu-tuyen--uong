@@ -5,10 +5,27 @@ import unittest
 from unittest.mock import patch
 from urllib.request import Request,urlopen
 from urllib.error import HTTPError
-from server import HTTPServer,Handler
+from server import HTTPServer,Handler,parse_server_args
 from deployment_config import api_base_url,allowed_origins
 
 class DeploymentTests(unittest.TestCase):
+    def test_preview_bind_defaults(self):
+        with patch.dict(os.environ, {}, clear=True):
+            args=parse_server_args([])
+        self.assertEqual(args.host,'0.0.0.0')
+        self.assertEqual(args.port,8000)
+        self.assertTrue(args.map_data.is_file())
+
+    def test_environment_port_and_local_host_override(self):
+        with patch.dict(os.environ, {'HOST':'127.0.0.1','PORT':'8123'}):
+            args=parse_server_args([])
+        self.assertEqual((args.host,args.port),('127.0.0.1',8123))
+
+    def test_cli_overrides_environment(self):
+        with patch.dict(os.environ, {'HOST':'0.0.0.0','PORT':'10000'}):
+            args=parse_server_args(['--host','127.0.0.1','--port','8124'])
+        self.assertEqual((args.host,args.port),('127.0.0.1',8124))
+
     def setUp(self):
         self.server=HTTPServer(('127.0.0.1',0),Handler)
         self.thread=threading.Thread(target=self.server.serve_forever,daemon=True);self.thread.start()

@@ -1,4 +1,3 @@
-/* Geographic display and API conversion only; no optimization or road routing. */
 (function (root) {
   'use strict';
   function projection(network) {

@@ -124,7 +124,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(200, fixture)
             except (OSError, ValueError, AttributeError, KeyError) as error:
                 return self.reply(503, {'error': f'Presentation scenario unavailable: {error}'})
-        network_routes = {"/api/network": "network", "/api/network/metadata": "metadata", "/api/network/geojson": "geojson", "/api/network/routing-profile": "routing-profile", "/api/demo-scenario": "demo-scenario"}
+        network_routes = {"/api/network/context": "context", "/api/network": "network", "/api/network/metadata": "metadata", "/api/network/geojson": "geojson", "/api/network/routing-profile": "routing-profile", "/api/demo-scenario": "demo-scenario"}
         if path in network_routes:
             store = getattr(self.server, "network_store", None)
             if store is None:
@@ -218,17 +218,23 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(200, result)
 
 
-if __name__ == "__main__":
+def parse_server_args(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=int(os.getenv("PORT", "8000")))
-    parser.add_argument("--host", default=os.getenv("HOST", "127.0.0.1"))
+    parser.add_argument("--host", default=os.getenv("HOST", "0.0.0.0"))
     parser.add_argument("--map-data", type=Path, default=Path(os.getenv("MAP_DATA", str(ROOT / "data/raw/hcm_map4.osm"))))
-    args = parser.parse_args()
+    return parser.parse_args(argv)
+
+
+if __name__ == "__main__":
+    args = parse_server_args()
     api_base_url(); allowed_origins()
     server = HTTPServer((args.host, args.port), Handler)
     server.timeout = 15
     server.network_store = NetworkStore(args.map_data)
-    print(f"Milestone 8: http://127.0.0.1:{args.port}", flush=True)
+    host, port = server.server_address
+    print(f"Listening on {host}:{port}", flush=True)
+    print(f"Open http://{'127.0.0.1' if host == '0.0.0.0' else host}:{port}/ (keep this process running)", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

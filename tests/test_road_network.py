@@ -163,6 +163,15 @@ class RoadNetworkTests(unittest.TestCase):
             with self.assertRaises(HTTPError) as error:
                 urlopen(base + "/api/network")
             self.assertEqual(error.exception.code, 422)
+            error.exception.read()
+            error.exception.close()
+            # Drain the serial server before deleting the malformed fixture.
+            # ElementTree's failed iterator can retain its file until cyclic GC
+            # on Windows; collect it without changing production map parsing.
+            with urlopen(base + "/api/health") as response:
+                response.read()
+            import gc
+            gc.collect()
             self.path.unlink()
             with self.assertRaises(HTTPError) as error:
                 urlopen(base + "/api/network")

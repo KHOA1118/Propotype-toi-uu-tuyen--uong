@@ -1,12 +1,12 @@
 const $ = id => document.getElementById(id);
 const NS = 'http://www.w3.org/2000/svg';
 const state = {geometry: null, network: null, scenario: null, nodes: [], result: null, mode: 'after', selected: null, route: null, zoom: 1, tx: 0, ty: 0};
-// Playback lifecycle is independent of the optimizer response and map selection.
 let simulation = null, simulationFrame = null, simulationTimestamp = null;
 let incidentState = null, incidentPending = false;
 let reoptimizationPending = false;
 let demo = null;
 let demoSetupPending = false;
+let optimizationLoading = false;
 const API_BASE_URL = (window.APP_CONFIG?.API_BASE_URL || '').replace(/\/$/, '');
 async function boundedFetch(path, options={}) {
   try {
@@ -14,7 +14,7 @@ async function boundedFetch(path, options={}) {
     if (location.protocol === 'https:' && url.startsWith('http:')) throw new Error('Cấu hình API phải dùng HTTPS khi website dùng HTTPS.');
     return await fetch(url, {...options, signal:options.signal || AbortSignal.timeout(20000)});
   } catch(error) {
-    if (['TypeError','TimeoutError','AbortError'].includes(error.name)) throw new Error('Không thể kết nối máy chủ tối ưu hoặc máy chủ phản hồi quá chậm. Vui lòng thử lại.');
+    if (['TypeError','TimeoutError','AbortError'].includes(error.name)) throw new Error('Không thể kết nối máy chủ tối ưu hoặc máy chủ phản hồi quá chậm');
     throw error;
   }
 }
@@ -25,10 +25,10 @@ async function runJob(path,payload){
   while(performance.now()-started<30000){
     await new Promise(resolve=>setTimeout(resolve,300));
     const response=await boundedFetch('/api/jobs/'+accepted.job_id);const status=await response.json();
-    if(!response.ok||status.status==='failed')throw new Error(status.error||'LNS thất bại');
+    if(!response.ok||status.status==='failed')throw new Error(status.error||'Thuật toán thất bại');
     if(status.status==='completed')return {...status.result,job_id:accepted.job_id};
   }
-  throw new Error('LNS chưa hoàn tất sau 30 giây; có thể thử lại');
+  throw new Error('Thuật toán chưa hoàn tất sau 30 giây có thể thử lại');
 }
 async function injectHidden(run){
   const eid=run.fixture.event.edge_id;run.lifecycle='ACTIVE_UNDETECTED';
@@ -48,33 +48,33 @@ async function sendTelemetry(run){
       if(result.lifecycle==='DETECTED'){
         run.lifecycle='DETECTED';run.sampleQueue=[];
         incidentState=result.known_state;simulation.setIncidentState(incidentState);dashboard.incident(simulation);
-        $('demo-status').textContent='Phát hiện bất thường tốc độ';$('incident-status').textContent='Phát hiện bất thường tốc độ · Hai mẫu liên tiếp dưới 50% tốc độ dự kiến.';
+        $('demo-status').textContent='Phát hiện bất thường tốc độ';$('incident-status').textContent='Phát hiện bất thường tốc độ';
         renderIncidents();renderDashboard();
         setTimeout(()=>{if(run.active&&demo===run){run.lifecycle='REOPTIMIZING';$('demo-status').textContent='Đang tái tối ưu tuyến...';reoptimizeFleet();}},700);
       }
     }
-  }catch(error){if(run.active)stopDemo(`Lỗi telemetry: ${error.message}`);}
+  }catch(error){if(run.active)stopDemo(`Lỗi: ${error.message}`);}
   finally{run.sending=false;}
 }
 function demoControls(){
-  $('run-demo').disabled=!state.network || !!demo?.active || demoSetupPending || reoptimizationPending || $('run').disabled;
+  $('run-demo').disabled=!state.network || !!demo?.active || demoSetupPending || reoptimizationPending || optimizationLoading;
   $('stop-demo').hidden=!demo?.active;
-  if(demo?.active) for(const id of ['run','incident-submit','incident-context','incident-type','reoptimize','sim-start','sim-pause','sim-resume','sim-reset','show-before','show-after']) $(id).disabled=true;
+  if(demo?.active) for(const id of ['incident-submit','incident-context','incident-type','reoptimize','sim-start','sim-pause','sim-resume','sim-reset','show-before','show-after']) $(id).disabled=true;
 }
 function stopDemo(message){
   if(demo) demo.active=false;
   stopClock();simulation?.pause();
   $('demo-status').textContent=message;
-  $('run').disabled=!state.network; $('incident-type').disabled=false;
+  $('incident-type').disabled=false;
   $('show-before').disabled=$('show-after').disabled=!state.result;
   $('reoptimize').disabled=!simulation;
   incidentControls();renderSimulation();demoControls();
 }
-$('stop-demo').addEventListener('click',()=>stopDemo('Đã dừng trình diễn. Bấm Run Demo Scenario để chạy lại từ đầu.'));
+$('stop-demo').addEventListener('click',()=>stopDemo('Đã dừng trình diễn.'));
 async function runDemo(){
   if(demo?.active || demoSetupPending || reoptimizationPending || !state.network)return;
   demoSetupPending=true;demo={active:true};demoControls();stopClock();simulation?.pause();
-  $('demo-status').textContent='Đang chuẩn bị kịch bản và tính tuyến bằng LNS thật…';
+  $('demo-status').textContent='Đang chuẩn bị thuật toán và tính tuyến thật…';
   $('demo-summary').textContent='';
   try{
     const response=await boundedFetch('/api/presentation-scenario');const fixture=await response.json();
@@ -85,12 +85,12 @@ async function runDemo(){
     const fresh=await session.json();if(!session.ok)throw new Error(fresh.error);
     if(!run.active)return;
     incidentState=fresh;$('request-json').value=JSON.stringify(fixture.scenario);
-    if(!await optimizeScenario())throw new Error('Không tạo được tuyến ban đầu; có thể thử lại.');
+    if(!await optimizeScenario())throw new Error('Không tạo được tuyến ban đầu');
     if(!run.active)return;
     run.phase='preview';demoControls();
-    $('demo-status').textContent='Tuyến ban đầu đã sẵn sàng. Đội xe chuẩn bị xuất phát.';
-    setTimeout(()=>{if(demo!==run||!run.active)return;run.phase='moving';$('demo-status').textContent='Đội xe đang giao hàng. Hệ thống theo dõi tốc độ qua telemetry.';simulation.start();dashboard.moving(0);runClock();renderSimulation();},1500);
-  }catch(error){stopDemo(`Không thể chạy demo: ${error.message}. Kiểm tra máy chủ rồi thử lại.`);}
+    $('demo-status').textContent='Đội xe chuẩn bị xuất phát';
+    setTimeout(()=>{if(demo!==run||!run.active)return;run.phase='moving';$('demo-status').textContent='Đội xe đang giao hàng.';simulation.start();dashboard.moving(0);runClock();renderSimulation();},1500);
+  }catch(error){stopDemo(`Không thể chạy demo: ${error.message} Kiểm tra máy chủ rồi thử lại.`);}
   finally{demoSetupPending=false;demoControls();}
 }
 $('run-demo').addEventListener('click',runDemo);
@@ -109,6 +109,7 @@ function renderDashboard() {
   $('decision-feasibility').textContent=dashboard.feasibility;
   const scopeLabel = $('decision-scope');
   if (scopeLabel) scopeLabel.textContent = dashboard.scope || 'Tối ưu tuyến để bắt đầu.';
+  renderBusinessMetrics(live);
   const signature=JSON.stringify(dashboard.events);
   if(signature!==timelineSignature){
     timelineSignature=signature; $('decision-timeline').replaceChildren();
@@ -122,7 +123,7 @@ async function reoptimizeFleet() {
   let decisionCapture = null;
   reoptimizationPending = true;
   $('reoptimize').disabled = true;
-  $('reopt-status').textContent = 'LNS thật đang tối ưu phần giao hàng còn lại… Xe tiếp tục đoạn đường đã đi vào, rồi chuyển tuyến tại nút tiếp theo.';
+  $('reopt-status').textContent = 'Thuật toán thật đang tối ưu phần giao hàng còn lại… Xe tiếp tục đoạn đường đã đi vào, rồi chuyển tuyến tại nút tiếp theo.';
   try {
     const vehicles = active.beginReoptimization(state.scenario);
     dashboard.begin(active,vehicles,state.network,incidentState); renderDashboard();
@@ -157,7 +158,7 @@ async function reoptimizeFleet() {
   } catch(error) {
     if(active===simulation && dashboard.capture===decisionCapture){dashboard.failed(active.elapsed);renderDashboard();}
     active.cancelReoptimization(); $('reopt-status').textContent = `Chưa áp dụng tuyến mới: ${error.message}`;
-    if(demo?.active)stopDemo(`Demo dừng: ${error.message}. Có thể chạy lại từ đầu.`);
+    if(demo?.active)stopDemo(`Demo dừng: ${error.message} (Có thể chạy lại từ đầu)`);
   } finally { reoptimizationPending=false; $('reoptimize').disabled=!simulation || state.mode!=='after'; demoControls(); }
 }
 $('reoptimize').addEventListener('click', reoptimizeFleet);
@@ -166,11 +167,11 @@ function incidentControls() {
   const picker = $('incident-context'), previous = picker.value;
   picker.replaceChildren();
   if (simulation) {
-    simulation.snapshot().forEach(v => picker.add(new Option(`Xe ${v.vehicleId} · đoạn hiện tại`, `vehicle:${v.vehicleId}`)));
+    simulation.snapshot().forEach(v => picker.add(new Option(`Xe ${v.vehicleId} đoạn hiện tại`, `vehicle:${v.vehicleId}`)));
     const edges = new Set(state.geometry[state.mode === 'before' ? 'initial_routes' : 'routes'].flatMap(r => r.edge_ids));
     for (const id of edges) {
-      const e = state.network.edges[id], name = state.network.ways[e.way_id]?.tags.name || 'Đường OSM';
-      picker.add(new Option(`${name} · ${id} (${e.from_node} → ${e.to_node})`, id));
+      const e = state.network.edges[id], name = state.network.ways[e.way_id]?.tags.name || 'Tuyến Đường';
+      picker.add(new Option(`${name} ${id} (${e.from_node} → ${e.to_node})`, id));
     }
     const hotspot = state.geometry.overlap?.incident_hotspot?.edge_id;
     picker.value = [...picker.options].some(o => o.value === previous) ? previous : (edges.has(hotspot) ? hotspot : [...edges][0]);
@@ -187,12 +188,12 @@ function renderIncidents() {
   const project = MapData.displayProjection(state.network);
   for (const e of Object.values(incidentState.edge_overrides)) {
     const a = project(state.network.nodes[e.from_node]), b = project(state.network.nodes[e.to_node]);
-    const line = svgElement('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:e.available ? '#C77A31' : '#B6493D','stroke-width':5,'stroke-dasharray':'5 3','vector-effect':'non-scaling-stroke','data-incident-edge':e.edge_id});
+    const line = svgElement('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:'var(--color-danger)','stroke-width':5,'stroke-dasharray':'5 3','vector-effect':'non-scaling-stroke','data-incident-edge':e.edge_id});
     line.append(svgElement('title',{},`${e.edge_id} · ${e.available ? `thời gian ×${e.travel_time_factor}` : 'Bị chặn'}`)); layer.append(line);
   }
   for (const incident of incidentState.incidents) {
     const row = document.createElement('p'); row.className = 'incident-row';
-    row.textContent = `${incidentNames[incident.type]} · Đang có hiệu lực · ${incident.edge_id}${incident.vehicle_id ? ` · Báo từ xe ${incident.vehicle_id}` : ''}`;
+    row.textContent = `${incidentNames[incident.type]} - Đang có hiệu lực - ${incident.edge_id}${incident.vehicle_id ? `- Báo từ xe ${incident.vehicle_id}` : ''}`;
     $('incident-list').append(row);
   }
 }
@@ -203,7 +204,7 @@ async function sendIncident(event) {
   if (context.startsWith('vehicle:')) {
     vehicleId = Number(context.slice(8));
     edgeId = simulation.snapshot().find(v => v.vehicleId === vehicleId)?.edgeId;
-    if (!edgeId) { $('incident-status').textContent = 'Xe đang ở depot hoặc giao hàng. Chọn đoạn đường cụ thể hoặc chờ xe di chuyển.'; return; }
+    if (!edgeId) { $('incident-status').textContent = 'Chọn đoạn đường cụ thể hoặc chờ xe di chuyển'; return; }
   }
   const sid = incidentState.session_id;
   const presentationRun=demo?.active ? demo : null;
@@ -218,8 +219,8 @@ async function sendIncident(event) {
     incidentState = result; simulation?.setIncidentState(result);
     if(simulation) dashboard.incident(simulation);
     renderIncidents(); renderSimulation();
-    $('incident-status').textContent = `Máy chủ đã ghi nhận · ${result.incidents.length} sự cố đang có hiệu lực · Phiên bản ${result.revision}.`;
-    if(demo?.active){demo.phase='impact';$('demo-status').textContent='3/5 · Tai nạn đã được đánh dấu. Tuyến hiện tại chịu thời gian tăng ×6.';} else await reoptimizeFleet();
+    $('incident-status').textContent = `Máy chủ đã ghi nhận - ${result.incidents.length} sự cố đang có hiệu lực - Phiên bản ${result.revision}.`;
+    if(demo?.active){demo.phase='impact';$('demo-status').textContent='3/5 - Tai nạn đã được đánh dấu - Tuyến hiện tại chịu thời gian tăng ×6.';} else await reoptimizeFleet();
   } catch (error) { $('incident-status').textContent = `Báo cáo chưa được xác nhận: ${error.message}.`; if(demo?.active)stopDemo(`Báo cáo thất bại: ${error.message}`); }
   finally { incidentPending = false; incidentControls(); }
 }
@@ -250,7 +251,7 @@ function tickSimulation(timestamp) {
       demo.sampleQueue.push(demo.samples(simulation));demo.nextSample+=event.sample_interval_ms;sendTelemetry(demo);
     }
     $('demo-status').dataset.trafficLifecycle=demo.lifecycle;
-    if(simulation.status==='completed'){demo.phase='completed';stopDemo('Hoàn tất · Tất cả xe đã về depot, mọi khách hàng đã được phục vụ.');}
+    if(simulation.status==='completed'){demo.phase='completed';stopDemo('(Hoàn tất) Tất cả xe đã về depot, mọi khách hàng đã được phục vụ.');}
   }
   renderSimulation();
   if (simulation.status === 'running') simulationFrame = requestAnimationFrame(tickSimulation);
@@ -269,7 +270,7 @@ function renderSimulation() {
   $('sim-start').disabled = status !== 'ready'; $('sim-pause').disabled = status !== 'running';
   $('sim-resume').disabled = status !== 'paused'; $('sim-reset').disabled = !simulation;
   const names = {ready: 'Sẵn sàng', running: 'Đang chạy', paused: 'Tạm dừng', completed: 'Tất cả xe đã về depot'};
-  $('sim-status').textContent = simulation ? `${names[status]} · ${(simulation.elapsed / 1000).toFixed(1)} giây · Mốc không sự cố: ${(simulation.duration / 1000).toFixed(0)} giây` : 'Tối ưu tuyến để chuẩn bị xe.';
+  $('sim-status').textContent = simulation ? `${names[status]} · ${(simulation.elapsed / 1000).toFixed(1)} giây - Mốc không sự cố: ${(simulation.duration / 1000).toFixed(0)} giây` : 'Tối ưu tuyến để chuẩn bị xe.';
   demoControls();
   if (!simulation) return;
   const project = MapData.displayProjection(state.network);
@@ -278,11 +279,11 @@ function renderSimulation() {
     const marker = svgElement('g', {transform: `translate(${x} ${y})`, 'data-vehicle-id': v.vehicleId, 'data-segment': v.segment, 'data-edge-id': v.edgeId || '', 'data-lat': v.position.lat, 'data-lon': v.position.lon, 'data-status': v.status, opacity: state.route === null || state.route === v.routeIndex ? 1 : .2});
     marker.append(svgElement('rect', {x: -9, y: -7, width: 18, height: 14, rx: 4, fill: routeColor(v.routeIndex), stroke: 'white', 'stroke-width': 2, 'vector-effect': 'non-scaling-stroke'}));
     marker.append(svgElement('text', {'text-anchor': 'middle', y: 4, fill: 'white', 'font-size': 10, 'font-weight': 700}, String(v.vehicleId)));
-    marker.append(svgElement('title', {}, `Xe ${v.vehicleId} · đoạn ${v.segment}/${v.segmentCount}`)); layer.append(marker);
+    marker.append(svgElement('title', {}, `Xe ${v.vehicleId} - đoạn ${v.segment}/${v.segmentCount}`)); layer.append(marker);
     const row = document.createElement('p'); row.className = 'vehicle-row'; row.style.borderLeftColor = routeColor(v.routeIndex);
     const activity = v.status === 'blocked' ? 'Dừng do chặn đường' : v.status === 'slowed' ? 'Đi chậm do sự cố' : v.status === 'servicing' ? `Giao khách ${v.stopId}` : v.status === 'completed' ? 'Đã về depot' : v.status === 'ready' ? 'Tại depot' : (v.stopId < 0 ? 'Đến nút chuyển tuyến' : `Đến khách ${v.stopId || 'depot'}`);
-    row.textContent = `Xe ${v.vehicleId} · ${activity} · đoạn ${v.segment}/${v.segmentCount} · Đã giao ${v.served.length}`;
-    row.title = `${v.position.lat.toFixed(6)}, ${v.position.lon.toFixed(6)} · ${v.edgeId || 'Dừng'}`;
+    row.textContent = `Xe ${v.vehicleId} · ${activity} - đoạn ${v.segment}/${v.segmentCount} - Đã giao ${v.served.length}`;
+    row.title = `${v.position.lat.toFixed(6)}, ${v.position.lon.toFixed(6)} - ${v.edgeId || 'Dừng'}`;
     $('vehicle-list').append(row);
   }
 }
@@ -291,7 +292,7 @@ $('sim-pause').addEventListener('click', () => { if (simulation?.status === 'run
 $('sim-resume').addEventListener('click', () => { if (simulation?.status === 'paused') { simulation.resume(); runClock(); } renderSimulation(); });
 $('sim-reset').addEventListener('click', () => { stopClock(); simulation?.reset(); if(state.result)dashboard.initial(state.geometry,state.result,state.network,incidentState); renderSimulation(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden && simulation?.status === 'running') $('sim-pause').click(); });
-const palette = ['#356D8C','#A0526D','#735D9D','#B56B3C','#3F7C78','#77783F'];
+const palette = ['#2563EB','#0EA5A8','#16A34A','#F59E0B','#7C3AED','#E11D48'];
 function routeColor(i) { return palette[i] || `hsl(${(i * 137.508) % 360} 65% 38%)`; }
 function routes() { return (state.mode==='before'?state.initialSolution:state.currentSolution)?.routes || []; }
 function svgElement(tag, attributes, text) {
@@ -398,7 +399,7 @@ function renderNodeInfo() {
 function renderLegend() {
   const list = $('route-list'); list.replaceChildren();
   const current = routes();
-  if (!current.length) { const p = document.createElement('p'); p.className = 'hint'; p.textContent = 'Bấm Tối ưu tuyến để nhận tuyến từ LNS.'; list.append(p); }
+  if (!current.length) { const p = document.createElement('p'); p.className = 'hint'; p.textContent = 'Chạy kịch bản mẫu để nhận tuyến từ LNS.'; list.append(p); }
   current.forEach((route, i) => {
     const button = document.createElement('button'); button.type = 'button'; button.className = 'route-button'; button.setAttribute('aria-pressed', String(state.route === i));
     button.setAttribute('aria-label', `Làm nổi bật tuyến ${i + 1}`);
@@ -471,7 +472,7 @@ function endDrag() { drag = null; }
 svg.addEventListener('pointerup', endDrag); svg.addEventListener('pointercancel', endDrag); svg.addEventListener('lostpointercapture', endDrag);
 
 async function optimizeScenario() {
-  $('run').disabled=true;clearResult();$('status').className='';$('status').textContent='Đang tính ma trận thời gian đường OSM và tối ưu LNS...';
+  optimizationLoading=true;clearResult();$('status').className='';$('status').textContent='Đang tính ma trận thời gian đường OSM và tối ưu LNS...';
   try{
     const scenario=JSON.parse($('request-json').value);
     const data=await runJob('/api/jobs/initial',{scenario});
@@ -498,9 +499,8 @@ async function optimizeScenario() {
     $('status').textContent=`6 tuyến đường thực · ${data.overlap_analysis.shared_corridors} vùng dùng chung · LNS theo thời gian OSM · Nghiệm hợp lệ`;
     return true;
   }catch(error){clearResult();$('status').className='error';$('status').textContent=`Không thể tối ưu: ${error.message}`;return false;}
-  finally{$('run').disabled=!state.network;demoControls();}
+  finally{optimizationLoading=false;demoControls();}
 }
-$('run-form').addEventListener('submit', async event => { event.preventDefault(); if(!demo?.active) await optimizeScenario(); });
 function renderRoads() {
   const project = MapData.displayProjection(state.network), paths = new Map();
   let count = 0;
@@ -516,7 +516,8 @@ function renderRoads() {
   const layer = $('road-layer'); layer.replaceChildren();
   for (const [category, d] of paths) {
     const major = /^(motorway|trunk|primary|secondary|tertiary)/.test(category);
-    layer.append(svgElement('path', {d, fill: 'none', stroke: major ? '#A7B1B0' : '#BCC5C3',opacity:major?.8:.7,
+    layer.append(svgElement('path', {d,fill:'none',stroke:'var(--map-outline)','stroke-width':major?3:1.8,'vector-effect':'non-scaling-stroke'}));
+    layer.append(svgElement('path', {d, fill: 'none', stroke: major ? 'var(--map-major)' : 'var(--map-minor)',opacity:major?.9:.8,
       'stroke-width': major ? 1.8 : 0.9, 'vector-effect': 'non-scaling-stroke', 'data-highway': category}));
   }
   layer.dataset.wayCount = String(count);
@@ -539,16 +540,16 @@ async function loadNetwork() {
     const sessionResponse = await boundedFetch('/api/simulation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source_sha256:network.metadata.source.sha256})});
     incidentState = await sessionResponse.json();
     if (!sessionResponse.ok) { const message = incidentState.error; incidentState = null; throw new Error(message || 'Không tạo được phiên mô phỏng'); }
-    renderRoads();
+    renderRoads(); loadDisplayContext();
     $('request-json').value = JSON.stringify(scenario, null, 2);
-    setNodes(MapData.bindResult(network, scenario, {dataset: {nodes: request.instance.nodes}})); setMode('after');
+    setNodes(MapData.bindResult(network, scenario, {dataset: {nodes: request.instance.nodes}})); setMode('after'); renderDashboard();
     const source = network.metadata.source;
     $('map-source').textContent = `${source.filename} · ${Object.keys(network.nodes).length.toLocaleString('vi-VN')} nút · ${Object.keys(network.edges).length.toLocaleString('vi-VN')} cạnh có hướng`;
     $('map-source').title = `SHA256: ${source.sha256}`;
-    $('status').textContent = 'Bản đồ đã sẵn sàng. Bấm Run Demo Scenario để bắt đầu trình diễn.';
-    $('run').disabled = false;demoControls();
+    $('status').textContent = 'Bản đồ đã sẵn sàng. Bấm Chạy kịch bản mẫu để bắt đầu trình diễn.';
+    demoControls();
   } catch (error) {
-    state.network = null; $('run').disabled = true;
+    state.network = null;
     $('retry-load').hidden=false;demoControls();
     $('status').className = 'error'; $('status').textContent = `Không thể tải bản đồ: ${error.message}. Kiểm tra nguồn --map-data rồi tải lại trang.`;
   } finally{mapLoading=false;}
@@ -557,3 +558,48 @@ $('retry-load').addEventListener('click',loadNetwork);
 loadNetwork();
 
 new ResizeObserver(()=>{if(state.nodes.length)resetView();}).observe($('network-map'));
+
+async function loadDisplayContext(){
+  try{
+    const response=await boundedFetch('/api/network/context');if(!response.ok)return;
+    const context=await response.json(),project=MapData.displayProjection(state.network),layer=$('context-layer');
+    layer.replaceChildren();
+    for(const feature of context.features||[]){
+      const polygon=feature.geometry.type==='Polygon',coords=polygon?feature.geometry.coordinates[0]:feature.geometry.coordinates;
+      const d=coords.map(([lon,lat],i)=>(i?'L':'M')+project({lon,lat}).join(',')).join(' ')+(polygon?' Z':'');
+      const color=feature.properties.kind==='water'?'var(--map-water)':'var(--map-green)';
+      layer.append(svgElement('path',{d,fill:polygon?color:'none',stroke:color,'stroke-width':polygon?0:3,'vector-effect':'non-scaling-stroke'}));
+    }
+  }catch(error){console.info('Lớp cảnh quan không khả dụng; giữ nền trung tính.');}
+}
+
+let chartSignature='';
+function renderBusinessMetrics(live){
+  const fmt=(v,scale=1,unit='')=>Number.isFinite(v)?`${(v/scale).toLocaleString('vi-VN',{maximumFractionDigits:1})}${unit}`:'—';
+  $('kpi-active').textContent=simulation?live.active:'—';
+  $('kpi-customers').textContent=state.nodes.length?state.nodes.filter(n=>n.id>0).length:'—';
+  $('kpi-time').textContent=fmt(dashboard.after?.travel,60,' phút');
+  $('kpi-time').title=dashboard.scope||'Chưa có kết quả tối ưu';
+  $('kpi-time').nextElementSibling.textContent=dashboard.scope?.includes('còn lại')?'Thời gian tuyến còn lại':'Tổng thời gian di chuyển';
+  $('kpi-affected').textContent=dashboard.before?dashboard.affected:'—';
+  const before=dashboard.before?.travel,after=dashboard.after?.travel;
+  $('kpi-saved').textContent=Number.isFinite(before)&&Number.isFinite(after)?fmt(before-after,60,' phút'):'—';
+  const signature=JSON.stringify([dashboard.before,dashboard.after,dashboard.rerouted,dashboard.scope]);
+  if(signature===chartSignature)return;chartSignature=signature;
+  const chart=$('comparison-chart');chart.replaceChildren();
+  const rows=[['Quãng đường',dashboard.before?.distance,dashboard.after?.distance,1000,' km'],['Thời gian',before,after,60,' phút'],['Xe đổi tuyến',dashboard.before?0:null,dashboard.after?dashboard.rerouted:null,1,' xe']];
+  for(const [label,a,b,scale,unit] of rows){
+    const row=document.createElement('div');row.className='chart-row';
+    const title=document.createElement('h3');title.textContent=label;row.append(title);
+    const max=Math.max(Number.isFinite(a)?a:0,Number.isFinite(b)?b:0,1);
+    for(const [value,name,kind] of [[a,'Trước','before'],[b,'Sau','after']]){
+      const line=document.createElement('div');line.className='bar-line';
+      const text=document.createElement('span');text.textContent=name;
+      const track=document.createElement('div');track.className='bar-track';
+      const bar=document.createElement('div');bar.className='bar '+kind;bar.style.width=Number.isFinite(value)?`${Math.max(0,value)/max*100}%`:'0%';track.append(bar);
+      const number=document.createElement('strong');number.textContent=fmt(value,scale,unit);
+      line.append(text,track,number);row.append(line);
+    }chart.append(row);
+  }
+  $('chart-scope').textContent=dashboard.scope?dashboard.scope+' · Xe đổi tuyến so với kế hoạch tại mốc so sánh.':'Chạy kịch bản để xem dữ liệu thực.';
+}

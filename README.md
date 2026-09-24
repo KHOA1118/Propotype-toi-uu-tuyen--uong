@@ -12,16 +12,30 @@ Use Python 3.10+ and a current browser. From this project directory:
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe server.py --port 8009
+$env:PORT = '8013'
+.\.venv\Scripts\python.exe server.py
 ```
 
-Open http://127.0.0.1:8009/ and click **Run Demo Scenario**. Keep the tab visible
+Open http://127.0.0.1:8013/ and click **Tối Ưu** (Run Demo Scenario). Keep the tab visible
 for the presentation. Allow roughly three minutes plus initial loading.
 **Dừng demo** stops playback; running the demo again creates a fresh session.
 Manual optimization and incident controls are available outside demo playback.
 
-The raw map is required at `data/raw/hcm_map4.osm` and is deliberately excluded
-from Git. If missing, copy the supplied file there (do not edit it), or run:
+### Preview cannot connect
+
+Keep the server process running while using Web Preview. Opening a URL alone
+does not start this Python application. If port 8013 refuses connections, run
+the command above again and check `http://127.0.0.1:8013/health` for HTTP 200.
+Use the same port in the browser and server; without `PORT` or `--port`, the
+server defaults to 8000. `.env.example` is documentation, not automatically loaded.
+
+The default bind is `0.0.0.0`; `HOST` or `--host` can override it. For loopback-only
+development, use `--host 127.0.0.1`. Leave `API_BASE_URL` empty for this combined
+frontend/backend setup. Render continues to supply its own `PORT`.
+
+The raw map is required at `data/raw/hcm_map4.osm` and is tracked in Git through
+an explicit `.gitignore` exception. Include it in every deployment. If missing,
+copy the supplied file there (do not edit it), or run:
 
 ```powershell
 .\.venv\Scripts\python.exe server.py --port 8009 --map-data 'D:\dự án startup\hcm_map4.osm'
@@ -66,7 +80,7 @@ Start the server first, then in another PowerShell window:
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -q
-$env:LNS_TEST_URL='http://127.0.0.1:8009'
+$env:LNS_TEST_URL='http://127.0.0.1:8013'
 node --test tests/*.cjs
 ```
 
@@ -109,3 +123,31 @@ See [MILESTONE_8.md](MILESTONE_8.md), [MILESTONE_7.md](MILESTONE_7.md),
 [MILESTONE_6.md](MILESTONE_6.md), and [REAL_LNS_VERIFICATION.md](REAL_LNS_VERIFICATION.md)
 for historical implementation details. See DEMO_REFINEMENT.md for the current
 scenario and behavior, which supersede older demo timing descriptions.
+
+## Manual deployment (combined Python service)
+
+Do not upload only `dist/`: that is an optional static export and cannot run LNS
+or the API. Deploy the complete project on a Python web service, from its root.
+
+- Build: `pip install -r requirements.txt && python tools/build.py`
+- Start: `python server.py`
+- Health check: `/health`
+- Python: 3.12.10 as configured in `render.yaml`; Node is only required for tests.
+- `HOST=0.0.0.0`; the platform supplies `PORT` (defaults to 8000 locally).
+- Leave `API_BASE_URL` and `ALLOWED_ORIGINS` empty for same-origin hosting.
+- `MAP_DATA` is optional; default: `data/raw/hcm_map4.osm` relative to the project.
+- Keep `frontend/`, `lns/`, all `road_network/` modules (including `context.py`),
+  `deployment_config.py`, `server.py`, `tools/build.py`, `requirements.txt`,
+  `data/presentation_scenario.json`, `data/example_request.json`, and the raw map.
+- The build checks the original OSM checksum and creates `dist/` assets; the
+  server reads `frontend/` and normalizes the raw OSM in memory. No processed
+  network file is required. `.env` files are not loaded automatically.
+- If deploying from Git, include new/untracked source files and your latest
+  edits in the commit before pushing; deployment cannot see local-only files.
+
+This is a small presentation prototype: one HTTP process and one solver worker,
+in-memory sessions, no authentication or rate limiting. Run one service instance;
+restarts discard sessions. Public high-traffic production requires additional
+operational hardening. Free-host cold starts and resource limits should be checked
+on the chosen host before presenting. `/health` checks liveness; also open the map
+and complete one demo after deployment to check data and solver readiness.

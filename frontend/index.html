@@ -1,45 +1,80 @@
 <!doctype html>
 <html lang="vi">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bản đồ tuyến đường giao hàng</title><link rel="stylesheet" href="/style.css"><script src="/config.js" defer></script><script src="/map-data.js" defer></script><script src="/simulation.js" defer></script><script src="/dashboard.js" defer></script><script src="/presentation.js" defer></script><script src="/app.js" defer></script></head>
+<head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bản đồ tuyến đường giao hàng</title><link rel="stylesheet" href="/style.css"><script src="/config.js" defer></script><script src="/map-data.js" defer></script><script src="/simulation.js" defer></script><script src="/dashboard.js" defer></script><script src="/presentation.js" defer></script><script src="/app.js" defer></script></head>
 <body><main>
-  <header><div><span class="eyebrow">HỆ THỐNG TÁI TỐI ƯU KHI TUYẾN ĐƯỜNG GẶP SỰ CỐ</span><h1>Bản đồ tuyến đường giao hàng</h1></div><div class="header-actions"><button id="run-demo" class="primary" disabled>Chạy kịch bản mẫu</button><button id="stop-demo" hidden>Dừng kịch bản</button><form id="run-form"><button id="run" class="primary" type="submit" disabled>Tối ưu tuyến đường</button></form></div></header>
-  <section class="demo-banner"><p id="demo-status" role="status">Kịch bản cố định</p><p id="demo-summary" aria-live="polite"></p></section>
+  <header><div><span class="eyebrow">ĐIỀU HÀNH VẬN TẢI </span></span><h1>Bản đồ tuyến đường giao hàng</h1><p>Phát hiện sự cố giao thông & Tái tối ưu tuyến đường theo thời gian thực</p></div><div class="header-actions"><button id="run-demo" class="primary" disabled>Tối Ưu</button><button id="stop-demo" hidden>Dừng kịch bản</button></div></header>
+  <section class="demo-banner"><p id="demo-status" role="status">Thuật toán tối ưu</p><p id="demo-summary" aria-live="polite"></p></section>
   <p id="status" role="status" aria-live="polite">Đang tải mạng đường HCM</p><button id="retry-load" hidden>Thử tải bản đồ lại</button>
-  <section class="decision-panel" aria-label="Bảng điều hành quyết định">
-    <h2>Bảng thông số hệ thống tối ưu </h2>
-    <div class="decision-grid">
-      <div><span>Tổng quãng đường (trước → sau)</span><strong id="decision-distance">—</strong></div>
-      <div><span>Tổng thời gian chạy (trước → sau)</span><strong id="decision-time">—</strong></div>
-      <div><span>Xe đang hoạt động</span><strong id="decision-active">—</strong></div>
-      <div><span>Xe bị ảnh hưởng (báo cáo gần nhất)</span><strong id="decision-affected">0</strong></div>
-      <div><span>Xe thực sự đổi tuyến</span><strong id="decision-rerouted">0</strong></div>
-      <div><span>Khách chưa giao xong</span><strong id="decision-remaining">—</strong></div>
-      <div><span>Thời gian xử lý tối ưu</span><strong id="decision-runtime">—</strong></div>
-      <div><span>Trạng thái khả thi</span><strong id="decision-feasibility" role="status">Chưa có nghiệm</strong></div>
+<section class="kpi-grid" aria-label="Tổng quan vận hành"><article class="kpi-card"><span class="icon-badge blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h11v11H3zM14 10h4l3 4v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span><div><strong id="kpi-active">—</strong><span>Xe đang hoạt động</span></div></article><article class="kpi-card"><span class="icon-badge amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5v9l-9 5-9-5V8zM3 8l9 5 9-5M12 13v9M7 5l10 6"/></svg></span><div><strong id="kpi-customers">—</strong><span>Điểm giao hàng</span></div></article><article class="kpi-card"><span class="icon-badge purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l4 2"/></svg></span><div><strong id="kpi-time">—</strong><span>Tổng thời gian di chuyển</span></div></article><article class="kpi-card"><span class="icon-badge red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 10 18H2zM12 9v5M12 17v1"/></svg></span><div><strong id="kpi-affected">—</strong><span>Xe bị ảnh hưởng</span></div></article><article class="kpi-card"><span class="icon-badge green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16h17M8 8l5 5 7-7M16 6h4v4"/></svg></span><div><strong id="kpi-saved">—</strong><span>Thời gian ước tính tiết kiệm</span></div></article></section>
+<div class="static-metrics">
+  <h2 class="static-metrics-title">
+    Kết quả tối ưu ban đầu
+  </h2>
+  <section class="metrics" aria-label="Tổng quan">
+    <div>
+      <span>Điểm giao hàng</span>
+      <strong id="customer-count">—</strong>
     </div>
-    <ol id="decision-timeline" aria-label="Dòng sự kiện mô phỏng"></ol>
+    <div>
+      <span>Tuyến đang xem</span>
+      <strong id="route-count">—</strong>
+    </div>
+    <div>
+      <span>Thời gian (trước/sau)</span>
+      <strong id="distance">—</strong>
+    </div>
+    <div>
+      <span>Thời gian tối ưu</span>
+      <strong id="runtime">—</strong>
+    </div>
   </section>
-  <section class="static-metrics" open><h3>Kết quả tối ưu ban đầu</h3>
-  <section class="metrics" aria-label="Tổng quan"><div><span>Điểm giao hàng</span><strong id="customer-count">—</strong></div><div><span>Tuyến đang xem</span><strong id="route-count">—</strong></div><div><span>Thời gian (trước → sau)</span><strong id="distance">—</strong></div><div><span>Thời gian tối ưu</span><strong id="runtime">—</strong></div></section>
-  </details>
+</div>
+<div class="static-metrics" style="margin-top: 24px;">
   <div class="workspace">
     <section class="map-card" aria-label="Bản đồ mạng lưới">
       <div class="map-header"><div><h2 id="map-title">Mạng lưới giao hàng</h2><span id="map-caption">Chưa có tuyến tối ưu</span></div><div class="segments" role="group" aria-label="Chọn phương án"><button id="show-before" type="button" aria-pressed="false" disabled>Kế hoạch ban đầu</button><button id="show-after" type="button" aria-pressed="true" disabled>Kế hoạch hiện tại</button></div></div>
-      <div class="map-stage"><svg id="network-map" viewBox="0 0 800 540" role="group" aria-label="Mạng đường HCM từ OpenStreetMap, chọn một điểm để xem chi tiết"><defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#E8ECF1" opacity="0.55" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#grid)"/><g id="map-world"><g id="road-layer" aria-label="Mạng đường OSM"></g><g id="overlay-layer"></g></g><text id="map-empty" x="400" y="270" text-anchor="middle">Chưa có dữ liệu</text></svg>
+      <div class="map-stage"><svg id="network-map" viewBox="0 0 800 540" role="group" aria-label="Mạng đường HCM từ OpenStreetMap, chọn một điểm để xem chi tiết"><defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#E8ECF1" opacity="0.55" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#grid)"/><g id="map-world"><g id="context-layer" aria-label="Cảnh quan OSM chỉ để hiển thị"></g><g id="road-layer" aria-label="Mạng đường OSM"></g><g id="overlay-layer"></g></g><text id="map-empty" x="400" y="270" text-anchor="middle">Chưa có dữ liệu</text></svg>
         <div class="map-tools" role="group" aria-label="Điều khiển bản đồ"><button id="zoom-in" type="button" aria-label="Phóng to">+</button><button id="zoom-out" type="button" aria-label="Thu nhỏ">−</button><button id="fit" type="button">Về giữa</button></div>
         <div class="map-note"><span class="depot-key">■</span> Depot <span class="customer-key">●</span> Khách hàng </div>
       </div>
       <div class="map-attribution"><span id="map-source">Đang tải nguồn bản đồ…</span> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a></div><div class="map-footer"><span id="view-summary">Sơ đồ mạng lưới</span><span id="zoom-level">100%</span></div>
     </section>
+    <div class="analysis-grid">  <section class="decision-panel" aria-label="Bảng điều hành quyết định">
+    <h2>Bảng thông số hệ thống tối ưu </h2>
+    <div class="decision-grid">
+      <div><span class="icon-badge teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3 3 21M17 3l4 18M12 4v3M12 10v4M12 17v3"/></svg></span><span>Tổng quãng đường (trước/sau)</span><strong id="decision-distance">—</strong></div>
+      <div><span class="icon-badge purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l4 2"/></svg></span><span>Tổng thời gian chạy (trước/sau)</span><strong id="decision-time">—</strong></div>
+      <div><span class="icon-badge blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h11v11H3zM14 10h4l3 4v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span><span>Xe đang hoạt động</span><strong id="decision-active">—</strong></div>
+
+      <div><span class="icon-badge teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><path d="M7 5h9a4 4 0 0 1 0 8H8a3 3 0 0 0 0 6h9"/></svg></span><span>Xe thực sự đổi tuyến</span><strong id="decision-rerouted">0</strong></div>
+      <div><span class="icon-badge amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5v9l-9 5-9-5V8zM3 8l9 5 9-5M12 13v9M7 5l10 6"/></svg></span><span>Khách chưa giao xong</span><strong id="decision-remaining">—</strong></div>
+      <div><span class="icon-badge purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg></span><span>Thời gian xử lý tối ưu</span><strong id="decision-runtime">—</strong></div>
+
+    </div>
+    <div class="decision-status"><div><span>Xe bị ảnh hưởng (báo cáo gần nhất)</span><strong id="decision-affected">0</strong></div><div><span>Trạng thái khả thi</span><strong id="decision-feasibility" role="status">Chưa có nghiệm</strong></div></div><p id="decision-scope" class="hint"></p><ol id="decision-timeline" aria-label="Dòng sự kiện mô phỏng"></ol>
+  </section>
+<section class="card comparison-panel"><h2>So sánh hiệu quả (Trước/Sau)</h2><p class="hint">Cùng phạm vi công việc và chi phí sự cố</p><div class="chart-key"><span>Trước</span><span>Sau</span></div><div id="comparison-chart" aria-label="Biểu đồ so sánh"></div><p id="chart-scope" class="hint">Chạy kịch bản để xem dữ liệu thực</p></section></div>
     <div class="operation-panels">
-      <section class="card"><h2>Mô phỏng đội xe</h2><div class="simulation-controls"><button id="sim-start" disabled>Bắt đầu</button><button id="sim-pause" disabled>Tạm dừng</button><button id="sim-resume" disabled>Tiếp tục</button><button id="sim-reset" disabled>Đặt lại</button></div><p id="sim-status" role="status">Tối ưu tuyến để chuẩn bị xe</p><p class="hint">Chạy tay khoảng 3 phút và dừng ngắn tại mỗi khách. Đổi phương án chỉ đổi lớp tuyến hiển thị. Thời gian mô phỏng độc lập với thời gian tối ưu</p><div id="vehicle-list"></div></section>
-      <section class="card"><h2>Các tuyến đường</h2><p class="hint">Chọn tuyến để làm nổi bật trên bản đồ</p><div id="route-list"></div></section>
-      <section class="card"><h2>Điểm giao thoa mạng lưới</h2><div id="overlap-info"><p class="hint">Tối ưu tuyến để phân tích các điểm và tuyến đường có nhiều xe di chuyển</p></div></section>
-      <section class="card"><h2>Thông tin vị trí</h2><label for="node-picker">Chọn trên bản đồ hoặc chọn ở danh sách</label><select id="node-picker"><option value="">Chọn một điểm...</option></select><div id="node-info" aria-live="polite"><p class="hint">Chọn depot hoặc khách hàng để xem chi tiết.</p></div></section>
+      <section class="card operation-card op-fleet">
+        <div class="operation-heading"><span class="operation-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h11v11H3zM14 10h4l3 4v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span><div><h2>Mô phỏng đội xe</h2><p>Điều khiển trạng thái đội xe và mô phỏng quy trình giao hàng</p></div></div>
+        <div class="simulation-controls" role="group" aria-label="Điều khiển mô phỏng"><button id="sim-start" disabled>Bắt đầu</button><button id="sim-pause" disabled>Tạm dừng</button><button id="sim-resume" disabled>Tiếp tục</button><button id="sim-reset" disabled>Đặt lại</button></div><p id="sim-status" role="status">Chạy kịch bản mẫu để chuẩn bị xe</p><p class="hint">Chạy tay khoảng 3 phút và dừng ngắn tại mỗi khách. Đổi phương án chỉ đổi lớp tuyến hiển thị. Thời gian mô phỏng độc lập với thời gian tối ưu</p><div id="vehicle-list"></div></section>
+      <section class="card operation-card op-routes">
+        <div class="operation-heading"><span class="operation-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><path d="M7 5h9a4 4 0 0 1 0 8H8a3 3 0 0 0 0 6h9"/></svg></span><div><h2>Các tuyến đường</h2><p>Chọn tuyến để làm nổi bật trên bản đồ</p></div></div>
+        <div class="operation-empty routes-empty"><span class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><path d="M7 5h9a4 4 0 0 1 0 8H8a3 3 0 0 0 0 6h9"/></svg></span><strong>Chưa có tuyến đường</strong><p>Chạy kịch bản mẫu để nhận tuyến từ LNS.</p></div><div id="route-list"></div></section>
+      <section class="card operation-card op-overlap">
+        <div class="operation-heading"><span class="operation-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="6" r="3"/><circle cx="19" cy="6" r="3"/><circle cx="12" cy="19" r="3"/><path d="M8 6h8M6 9l4 7M18 9l-4 7"/></svg></span><div><h2>Điểm giao thoa mạng lưới</h2><p>Xem các đoạn đường dùng chung giữa nhiều xe</p></div></div>
+        <div class="operation-empty overlap-empty"><span class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="6" r="3"/><circle cx="19" cy="6" r="3"/><circle cx="12" cy="19" r="3"/><path d="M8 6h8M6 9l4 7M18 9l-4 7"/></svg></span><strong>Chưa có dữ liệu giao thoa</strong><p>Chạy kịch bản mẫu để xem các đoạn đường dùng chung.</p></div><div id="overlap-info"><p class="hint">Chạy kịch bản mẫu để xem các đoạn đường dùng chung</p></div></section>
+      <section class="card operation-card op-location">
+        <div class="operation-heading"><span class="operation-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></span><div><h2>Thông tin vị trí</h2><p>Chọn điểm trên bản đồ hoặc chọn từ danh sách</p></div></div>
+        <label for="node-picker">Điểm cần xem</label><select id="node-picker"><option value="">Chọn một điểm...</option></select><div class="operation-empty location-empty"><span class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></span><strong>Chưa có thông tin vị trí</strong><p>Chọn depot hoặc khách hàng để xem chi tiết.</p></div><div id="node-info" aria-live="polite"><p class="hint">Chọn depot hoặc khách hàng để xem chi tiết.</p></div></section>
     </div>
     <div class="incident-panels">
-      <section class="card"><h2>Báo cáo sự cố giao thông</h2><form id="incident-form"><label for="incident-context">Tuyến đường hoặc xe đang di chuyển</label><select id="incident-context" disabled><option value="">Tối ưu tuyến trước</option></select><label for="incident-type">Loại sự cố</label><select id="incident-type"><option value="congestion">Kẹt xe (thời gian ×3)</option><option value="accident">Tai nạn (thời gian ×6)</option><option value="road_blockage">Chặn đường (dừng xe)</option></select><button id="incident-submit" type="submit" disabled>Ghi nhận báo cáo</button></form><p id="incident-status" role="status">Chưa ghi nhận báo cáo.</p><div id="incident-list"></div></section>
-      <section class="card"><h2>Tái tối ưu tự động</h2><button id="reoptimize" disabled>Tái tối ưu </button><p id="reopt-status" role="status">Tái tối ưu tự động sau khi xe đi vào và ghi nhận đoạn đường chịu sự cố</p><p class="hint">Sau khi ghi nhận sự cố, hệ thống sẽ ngay lập tức tái tối ưu tuyến đường cho các tuyển xe chưa đi vào sau khi nhận diện và đánh giá mức độ sự cố (Chi phí động được tính theo thời gian di chuyển trên mạng lưới OSM; với các đoạn đường thiếu dữ liệu tốc độ, hệ thống tạm ước lượng ở mức 30 km/h. Các chỉ số trước và sau tối ưu chỉ được tính trên phần tuyến còn lại dưới cùng trạng thái sự cố)</p></section>
+      <section class="card operation-card op-incident">
+        <div class="operation-heading"><span class="operation-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 10 18H2zM12 9v5M12 17v1"/></svg></span><div><h2>Báo cáo sự cố giao thông</h2><p>Ghi nhận tình trạng giao thông trên tuyến vận chuyển</p></div></div>
+        <form id="incident-form"><div class="incident-fields"><div><label for="incident-context">Tuyến đường hoặc xe đang di chuyển</label><select id="incident-context" disabled><option value="">Chạy kịch bản mẫu trước</option></select></div><div><label for="incident-type">Loại sự cố</label><select id="incident-type"><option value="congestion">Kẹt xe (thời gian ×3)</option><option value="accident">Tai nạn (thời gian ×6)</option><option value="road_blockage">Chặn đường (dừng xe)</option></select></div></div><button id="incident-submit" type="submit" disabled>Ghi nhận báo cáo</button></form><p id="incident-status" role="status">Chưa ghi nhận báo cáo.</p><div id="incident-list"></div></section>
+      <section class="card operation-card op-optimization">
+        <div class="operation-heading"><span class="operation-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m13 2-9 12h7l-1 8 10-13h-8z"/></svg></span><div><h2>Tái tối ưu tự động</h2><p>Theo dõi xử lý sự cố và cập nhật phương án vận chuyển</p></div></div>
+        <ol class="operation-flow" aria-label="Quy trình xử lý tham khảo"><li>Phát hiện sự cố</li><li>Xử lý dữ liệu giao thông</li><li>Chạy thuật toán LNS</li><li>Cập nhật tuyến mới</li></ol><button id="reoptimize" disabled>Tái tối ưu </button><p id="reopt-status" role="status">Tái tối ưu tự động sau khi xe đi vào và ghi nhận đoạn đường chịu sự cố</p><details class="technical-note"><summary>Cách hệ thống xử lý</summary><p class="hint">Sau khi ghi nhận sự cố, hệ thống sẽ ngay lập tức tái tối ưu tuyến đường cho các tuyển xe chưa đi vào sau khi nhận diện và đánh giá mức độ sự cố (Chi phí động được tính theo thời gian di chuyển trên mạng lưới OSM; với các đoạn đường thiếu dữ liệu tốc độ, hệ thống tạm ước lượng ở mức 30 km/h. Các chỉ số trước và sau tối ưu chỉ được tính trên phần tuyến còn lại dưới cùng trạng thái sự cố)</p></details></section>
     </div>
   </div>
   <textarea id="request-json" hidden aria-hidden="true"></textarea><pre id="raw" hidden aria-hidden="true"></pre>

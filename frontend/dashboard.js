@@ -19,7 +19,7 @@
       this.reset();
       this.before=costs(parts(geometry.initial_routes.flatMap(r=>r.edge_ids)),network,incidents);
       this.after=costs(parts(geometry.routes.flatMap(r=>r.edge_ids)),network,incidents);
-      this.scope='Toàn bộ tuyến ban đầu · khoảng cách đường OSM';
+      this.scope='Toàn bộ tuyến ban đầu - khoảng cách đường';
       this.runtime=result.total_seconds;
       this.feasibility=result.feasible ? (this.after.travel===null ? 'Có đường bị chặn' : 'Nghiệm ban đầu hợp lệ') : 'Không hợp lệ';
       this.event('Nghiệm ban đầu');
@@ -41,7 +41,7 @@
       this.before=costs(this.capture.flatMap(v=>[...v.prefix,...v.suffix]),network,incidents);
       this.after=null;this.rerouted=0;this.runtime=null;
       this.affected=this.capture.filter(v=>[...v.prefix,...v.suffix].some(e=>incidents.edge_overrides[e.id])).length;
-      this.scope='Tổng phần đường còn lại của đội xe tại lúc yêu cầu · cùng chi phí sự cố';
+      this.scope='Tổng phần đường còn lại của đội xe tại lúc yêu cầu cùng chi phí sự cố';
       this.feasibility='Đang kiểm tra';this.event('Bắt đầu tái tối ưu',sim.elapsed);
     }
     applied(result,elapsed){
@@ -55,7 +55,7 @@
       this.feasibility=result.failures.length ? 'Chưa bảo đảm toàn đội' : this.after.travel===null ? 'Có đường bị chặn' : result.updates.length ? 'Phần tái tối ưu hợp lệ' : 'Không có tuyến cần đổi';
       this.event(result.updates.length ? 'Đã áp dụng nghiệm mới' : 'Giữ phương án hiện tại',elapsed);
     }
-    failed(elapsed){this.after=null;this.feasibility='Chưa áp dụng · cần kiểm tra';this.event('Tái tối ưu chưa áp dụng',elapsed);}
+    failed(elapsed){this.after=null;this.feasibility='Chưa thể áp dụng được cần kiểm tra lại';this.event('Tái tối ưu chưa áp dụng',elapsed);}
     live(sim,total){const vehicles=sim?.snapshot()||[];return {active:vehicles.filter(v=>v.status!=='completed').length,remaining:Math.max(0,total-new Set(vehicles.flatMap(v=>v.served)).size)};}
   }
   if(typeof module!=='undefined')module.exports={Dashboard,costs};else root.DecisionDashboard={Dashboard,costs};

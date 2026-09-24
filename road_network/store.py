@@ -2,6 +2,7 @@
 from pathlib import Path
 import threading
 from .loader import load_osm, to_geojson
+from .context import load_context
 
 
 class NetworkStore:
@@ -9,6 +10,7 @@ class NetworkStore:
         self.source = Path(source)
         self._signature = None
         self._network = None
+        self._context = None
         self._geojson = None
         self._lock = threading.Lock()
 
@@ -20,7 +22,12 @@ class NetworkStore:
                 network = load_osm(self.source)
                 self._network = network
                 self._geojson = None
+                self._context = None
                 self._signature = signature
+            if resource == "context":
+                if self._context is None:
+                    self._context = load_context(self.source)
+                return self._context
             if resource == "metadata":
                 return self._network["metadata"]
             if resource == "geojson":

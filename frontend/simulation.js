@@ -1,4 +1,3 @@
-/* Pure, deterministic timeline. No DOM, optimizer mutation or real traffic model. */
 (function(root) {
   'use strict';
   class Simulation {
