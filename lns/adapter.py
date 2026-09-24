@@ -13,8 +13,10 @@ ROOT = Path(__file__).resolve().parents[1]
 SOLVE_LOCK = threading.Lock()  # notebook stdout redirection is process-global
 
 class InputError(ValueError):
+    pass
 
 class ConstructionError(ValueError):
+    pass
 
 
 def _number(value, label, minimum=None):
